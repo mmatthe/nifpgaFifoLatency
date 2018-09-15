@@ -6,6 +6,7 @@
 #include <memory>
 #include <chrono>
 #include <thread>
+#include <fstream>
 
 #include <cstdlib>
 #include <ctime>
@@ -64,25 +65,23 @@ template <class data_type>
 std::vector<uint64_t> measure_latency(NiFpga_Session session,
 				 nifpga::Fifo<data_type>& fifo_in,
 				 nifpga::Fifo<data_type>& fifo_out,
-				 int bytes_per_block, int num_tries) {
+				 int elements_per_block, int num_tries) {
   using namespace std::chrono_literals;
   
   std::vector<uint64_t> result;
   result.reserve(num_tries);
 
 
-  size_t num_elements = bytes_per_block / sizeof(data_type);
-  bytes_per_block = num_elements * sizeof(data_type);
-  std::unique_ptr<data_type[]> buffer_in(new data_type[num_elements]);
-  std::unique_ptr<data_type[]> buffer_out(new data_type[num_elements]);
+  std::unique_ptr<data_type[]> buffer_in(new data_type[elements_per_block]);
+  std::unique_ptr<data_type[]> buffer_out(new data_type[elements_per_block]);
 
-  std::generate(buffer_in.get(), buffer_in.get() + num_elements, std::rand);
+  std::generate(buffer_in.get(), buffer_in.get() + elements_per_block, std::rand);
 
   for (int i = 0; i < num_tries; i++) {
     auto start = std::chrono::high_resolution_clock::now();
 
-    nifpga::writeFifo(session, fifo_in, buffer_in.get(), num_elements, 1000, nullptr);
-    nifpga::readFifo(session, fifo_out , buffer_out.get(), num_elements, 1000, nullptr);
+    nifpga::writeFifo(session, fifo_in, buffer_in.get(), elements_per_block, 1000, nullptr);
+    nifpga::readFifo(session, fifo_out , buffer_out.get(), elements_per_block, 1000, nullptr);
     
     auto finish = std::chrono::high_resolution_clock::now();
     std::chrono::nanoseconds elapsed = finish - start;
@@ -106,8 +105,18 @@ int main() {
     test_registers(session);
     test_fifos(session);
 
-    std::vector<uint64_t> lat_i32 = measure_latency(session, fifo_FIFO_I32H2T, fifo_FIFO_I32T2H, 1024, 100);
-    std::copy(lat_i32.begin(), lat_i32.end(), std::ostream_iterator<int>(std::cout, " "));
+    std::vector<int32_t> numBytes{1, 8, 16, 32, 64, 128, 256, 1024, 2048, 4096, 2*4096, 4*4096, 8*4096, 16*4096};
+    for(auto bytes: numBytes) {
+      std::cout << "Transmitting " << bytes << " bytes...";
+
+      std::string fn = "results/I32_" + std::to_string(bytes) + ".txt";
+      std::vector<uint64_t> lat_i32 = measure_latency(session,
+						      fifo_FIFO_I32H2T,
+						      fifo_FIFO_I32T2H,
+						      bytes, 10000);
+      std::copy(lat_i32.begin(), lat_i32.end(), std::ostream_iterator<int>(std::ofstream(fn), "\n"));
+      std::cout << " done." << std::endl;
+    }
   }
   catch(nifpga::fpga_exception& e){
     std::cerr << e.what() << std::endl;
