@@ -121,11 +121,11 @@ void testSystem(NiFpga_Session session) {
     test_fifos(session, fifo_I8_H2T, fifo_I8_T2H, 100, 1024*1024);
     test_fifos(session, fifo_I16_H2T, fifo_I16_T2H, 100, 1024*1024);
     test_fifos(session, fifo_I32H2T, fifo_I32T2H, 100, 1024*1024);
-    test_fifos(session, fifo_I64_H2T, fifo_I64_T2H, 100, 1024*1024);    
+    test_fifos(session, fifo_I64_H2T, fifo_I64_T2H, 100, 1024*1024);
     test_fifos(session, fifo_U8_H2T, fifo_U8_T2H, 100, 1024*1024);
     test_fifos(session, fifo_U16_H2T, fifo_U16_T2H, 100, 1024*1024);
     test_fifos(session, fifo_U32_H2T, fifo_U32_T2H, 100, 1024*1024);
-    test_fifos(session, fifo_U64H2T, fifo_U64T2H, 100, 1024*1024);    
+    test_fifos(session, fifo_U64H2T, fifo_U64T2H, 100, 1024*1024);
     std::cout << "Done." << std::endl;
 
     std::vector<std::thread> threads;
@@ -143,9 +143,20 @@ void testSystem(NiFpga_Session session) {
     std::cout << "Done" << std::endl;
 }
 
-
-int main() {
+int main(int argc, char** argv) {
   std::srand(std::time(nullptr));
+
+  cxxopts::Options options("FifoLatency", "Measure Latency of the nifpga FIFOs");
+  options.add_options()
+    ("d,directory", "Output directory", cxxopts::value<std::string>())
+    ("p,parallel", "Number of parallely used FIFOs", cxxopts::value<unsigned int>())
+    ;
+
+  auto arguments = options.parse(argc, argv);
+  std::cout << "Running latency measurement into directory " << arguments["directory"].as<std::string>() << std::endl;
+  std::cout << "Using " << arguments["parallel"].as<unsigned int>() << " parallel threads for measurement." << std::endl;
+  std::string outputDir = arguments["directory"].as<std::string>();
+  system(("mkdir " + outputDir).c_str());
 
   try {
     nifpga::initialize();
@@ -155,8 +166,8 @@ int main() {
     NiFpga_Session session = nifpga::open((path + bitfile_filepath).c_str(), bitfile_signature, "RIO0", 0);
     std::cout << "done." << std::endl;
 
-    configureFifos(session);
-    testSystem(session);
+    // configureFifos(session);
+    // testSystem(session);
 
     std::vector<int32_t> numElements{1, 8, 16, 32, 64, 128, 256, 1024, 2048, 4096, 2*4096};
     for(auto elems: numElements) {
@@ -165,7 +176,7 @@ int main() {
       std::map<std::string, std::vector<uint64_t> > latencies = measure_latencies(session, 100, elems, 4);
 
       for (auto kv: latencies) {
-	std::string fn = "results/ " + kv.first + "_" + std::to_string(elems) + ".txt";
+	std::string fn = outputDir + "/" + kv.first + "_" + std::to_string(elems) + ".txt";
 
 	std::ofstream outfile(fn);
 	std::copy(kv.second.begin(), kv.second.end(), std::ostream_iterator<uint64_t>(outfile, "\n"));
