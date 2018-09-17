@@ -7,6 +7,7 @@
 #include <chrono>
 #include <thread>
 #include <fstream>
+#include <thread>
 
 #include <cstdlib>
 #include <ctime>
@@ -52,6 +53,24 @@ std::vector<uint64_t> measure_latency(NiFpga_Session session,
   return result;
 }
 
+void configureFifos(NiFpga_Session session) {
+    const int DEPTH=100000000;
+    nifpga::configureFifo(session, fifo_FIFO_I32H2T, DEPTH);
+    nifpga::configureFifo(session, fifo_FIFO_I32T2H, DEPTH);
+}
+
+void testSystem(NiFpga_Session session) {
+    std::cout << "Testing registers sequentially... ";
+    test_registers(session, reg_I32in, reg_I32out);
+    test_registers(session, reg_u8in, reg_u8out);
+    std::cout << "Done." << std::endl;
+
+    std::cout << "Testing FIFOs sequentially... ";
+    test_fifos(session, fifo_FIFO_I32H2T, fifo_FIFO_I32T2H, 100, 1024*1024);
+    test_fifos(session, fifo_FIFO_U64H2T, fifo_FIFO_U64T2H, 100, 1024*1024);
+    std::cout << "Done." << std::endl;
+}
+
 int main() {
   std::srand(std::time(nullptr));
 
@@ -63,19 +82,8 @@ int main() {
     NiFpga_Session session = nifpga::open((path + bitfile_filepath).c_str(), bitfile_signature, "RIO0", 0);
     std::cout << "done." << std::endl;
 
-    const int DEPTH=100000000;
-    nifpga::configureFifo(session, fifo_FIFO_I32H2T, DEPTH);
-    nifpga::configureFifo(session, fifo_FIFO_I32T2H, DEPTH);
-
-    std::cout << "Testing registers... ";
-    test_registers(session, reg_I32in, reg_I32out);
-    test_registers(session, reg_u8in, reg_u8out);
-    std::cout << "Done." << std::endl;
-
-    std::cout << "Testing FIFOs sequentially... ";
-    test_fifos(session, fifo_FIFO_I32H2T, fifo_FIFO_I32T2H, 100, 1024*1024);
-    test_fifos(session, fifo_FIFO_U64H2T, fifo_FIFO_U64T2H, 100, 1024*1024);
-    std::cout << "Done." << std::endl;
+    configureFifos(session);
+    testSystem(session);
 
     // std::vector<int32_t> numBytes{1, 8, 16, 32, 64, 128, 256, 1024, 2048, 4096, 2*4096, 4*4096, 8*4096, 16*4096};
     // for(auto bytes: numBytes) {
