@@ -47,7 +47,8 @@ std::vector<uint64_t> measure_latency(NiFpga_Session session,
 
     auto finish = std::chrono::high_resolution_clock::now();
     std::chrono::nanoseconds elapsed = finish - start;
-    result.push_back(elapsed.count());
+    if (i > 0)  // do not store the first try, as it may contain some updates
+      result.push_back(elapsed.count());
     std::this_thread::sleep_for(100us);
   }
   return result;
@@ -67,11 +68,27 @@ void testSystem(NiFpga_Session session) {
     test_registers(session, reg_I32in, reg_I32out);
     test_registers(session, reg_u8in, reg_u8out);
     std::cout << "Done." << std::endl;
-
-    std::cout << "Testing FIFOs sequentially... " << std::endl;
+    
+    std::cout << "Testing FIFOs sequentially... " << std::endl;  
     test_fifos(session, fifo_FIFO_I32H2T, fifo_FIFO_I32T2H, 100, 1024*1024);
     test_fifos(session, fifo_FIFO_U64H2T, fifo_FIFO_U64T2H, 100, 1024*1024);
     std::cout << "Done." << std::endl;
+
+    std::vector<std::thread> threads;
+    std::cout << "Testing FIFOs in parallel... " << std::endl;
+    threads.push_back(std::thread([&]() { test_fifos(session, fifo_FIFO_I32H2T, fifo_FIFO_I32T2H, 100, 1024*1024);}));
+    threads.push_back(std::thread([&]() { test_fifos(session, fifo_FIFO_U64H2T, fifo_FIFO_U64T2H, 100, 1024*1024);}));
+    for(auto& T: threads)
+      T.join();
+    std::cout << "Done" << std::endl;
+}
+
+std::map<std::string, std::vector<uint64_t> > measure_latencies(NiFpga_Session session, int num_runs, int num_elements) {
+  std::map<std::string, std::vector<uint64_t> > result;
+
+  result["I32"] = measure_latency(session, fifo_FIFO_I32H2T, fifo_FIFO_I32T2H, num_elements, num_runs);
+  result["U64"] = measure_latency(session, fifo_FIFO_U64H2T, fifo_FIFO_U64T2H, num_elements, num_runs);
+  return result;
 }
 
 int main() {
@@ -86,21 +103,22 @@ int main() {
     std::cout << "done." << std::endl;
 
     configureFifos(session);
-    testSystem(session);
+    //    testSystem(session);
 
-    // std::vector<int32_t> numBytes{1, 8, 16, 32, 64, 128, 256, 1024, 2048, 4096, 2*4096, 4*4096, 8*4096, 16*4096};
-    // for(auto bytes: numBytes) {
-    //   std::cout << "Transmitting " << bytes << " bytes...";
+    std::vector<int32_t> numElements{1, 8, 16, 32, 64, 128, 256, 1024, 2048, 4096, 2*4096};
+    for(auto elems: numElements) {
+      std::cout << "Transmitting " << elems << " elements...";
 
-    //   std::string fn = "results/I32_" + std::to_string(bytes) + ".txt";
-    //   std::vector<uint64_t> lat_i32 = measure_latency(session,
-    // 						      fifo_FIFO_I32H2T,
-    // 						      fifo_FIFO_I32T2H,
-    // 						      bytes, 10000);
-    //   std::ofstream outfile(fn);
-    //   std::copy(lat_i32.begin(), lat_i32.end(), std::ostream_iterator<int>(outfile, "\n"));
-    //   std::cout << " done." << std::endl;
-    // }
+      std::map<std::string, std::vector<uint64_t> > latencies = measure_latencies(session, 100, elems);
+
+      for (auto kv: latencies) {
+	std::string fn = "results/ " + kv.first + "_" + std::to_string(elems) + ".txt";
+
+	std::ofstream outfile(fn);
+	std::copy(kv.second.begin(), kv.second.end(), std::ostream_iterator<uint64_t>(outfile, "\n"));
+      }
+      std::cout << " done." << std::endl;
+    }
   }
   catch(nifpga::fpga_exception& e){
     std::cerr << e.what() << std::endl;
