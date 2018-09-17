@@ -57,6 +57,9 @@ void configureFifos(NiFpga_Session session) {
     const int DEPTH=100000000;
     nifpga::configureFifo(session, fifo_FIFO_I32H2T, DEPTH);
     nifpga::configureFifo(session, fifo_FIFO_I32T2H, DEPTH);
+    nifpga::configureFifo(session, fifo_FIFO_U64H2T, DEPTH);
+    nifpga::configureFifo(session, fifo_FIFO_U64T2H, DEPTH);
+
 }
 
 void testSystem(NiFpga_Session session) {
@@ -65,7 +68,7 @@ void testSystem(NiFpga_Session session) {
     test_registers(session, reg_u8in, reg_u8out);
     std::cout << "Done." << std::endl;
 
-    std::cout << "Testing FIFOs sequentially... ";
+    std::cout << "Testing FIFOs sequentially... " << std::endl;
     test_fifos(session, fifo_FIFO_I32H2T, fifo_FIFO_I32T2H, 100, 1024*1024);
     test_fifos(session, fifo_FIFO_U64H2T, fifo_FIFO_U64T2H, 100, 1024*1024);
     std::cout << "Done." << std::endl;
@@ -76,7 +79,7 @@ int main() {
 
   try {
     nifpga::initialize();
-    std::string path = "c:/Users/maximilian.matthe/Documents/FifoLatency/src/";
+    std::string path = "c:/Users/maximilian.matthe/Documents/nifpgaFifoLatency/src/";
 
     std::cout << "Opening FPGA... ";
     NiFpga_Session session = nifpga::open((path + bitfile_filepath).c_str(), bitfile_signature, "RIO0", 0);
