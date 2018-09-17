@@ -66,7 +66,13 @@ std::function<std::vector<uint64_t>()> measureFunc(NiFpga_Session session,
 std::map<std::string, std::vector<uint64_t> > measure_latencies(NiFpga_Session session, int num_runs, int num_elements, int parallelism) {
 
   std::map<std::string, std::function<std::vector<uint64_t>()>> functions;
+  functions["I8"] = measureFunc(session, fifo_I8_H2T, fifo_I8_T2H, num_elements, num_runs);
+  functions["I16"] = measureFunc(session, fifo_I16_H2T, fifo_I16_T2H, num_elements, num_runs);
   functions["I32"] = measureFunc(session, fifo_I32H2T, fifo_I32T2H, num_elements, num_runs);
+  functions["I64"] = measureFunc(session, fifo_I64_H2T, fifo_I64_T2H, num_elements, num_runs);
+  functions["U8"] = measureFunc(session, fifo_U8_H2T, fifo_U8_T2H, num_elements, num_runs);
+  functions["U16"] = measureFunc(session, fifo_U16_H2T, fifo_U16_T2H, num_elements, num_runs);
+  functions["U32"] = measureFunc(session, fifo_U32_H2T, fifo_U32_T2H, num_elements, num_runs);
   functions["U64"] = measureFunc(session, fifo_U64H2T, fifo_U64T2H, num_elements, num_runs);
 
   std::map<std::string, std::vector<uint64_t> > result;
@@ -86,11 +92,23 @@ std::map<std::string, std::vector<uint64_t> > measure_latencies(NiFpga_Session s
 
 void configureFifos(NiFpga_Session session) {
     const int DEPTH=100000000;
+    nifpga::configureFifo(session, fifo_I8_H2T, DEPTH);
+    nifpga::configureFifo(session, fifo_I8_T2H, DEPTH);
+    nifpga::configureFifo(session, fifo_I16_H2T, DEPTH);
+    nifpga::configureFifo(session, fifo_I16_T2H, DEPTH);
     nifpga::configureFifo(session, fifo_I32H2T, DEPTH);
     nifpga::configureFifo(session, fifo_I32T2H, DEPTH);
+    nifpga::configureFifo(session, fifo_I64_H2T, DEPTH);
+    nifpga::configureFifo(session, fifo_I64_T2H, DEPTH);
+
+    nifpga::configureFifo(session, fifo_U8_H2T, DEPTH);
+    nifpga::configureFifo(session, fifo_U8_T2H, DEPTH);
+    nifpga::configureFifo(session, fifo_U16_H2T, DEPTH);
+    nifpga::configureFifo(session, fifo_U16_T2H, DEPTH);
+    nifpga::configureFifo(session, fifo_U32_H2T, DEPTH);
+    nifpga::configureFifo(session, fifo_U32_T2H, DEPTH);
     nifpga::configureFifo(session, fifo_U64H2T, DEPTH);
     nifpga::configureFifo(session, fifo_U64T2H, DEPTH);
-
 }
 
 void testSystem(NiFpga_Session session) {
@@ -100,13 +118,25 @@ void testSystem(NiFpga_Session session) {
     std::cout << "Done." << std::endl;
 
     std::cout << "Testing FIFOs sequentially... " << std::endl;
+    test_fifos(session, fifo_I8_H2T, fifo_I8_T2H, 100, 1024*1024);
+    test_fifos(session, fifo_I16_H2T, fifo_I16_T2H, 100, 1024*1024);
     test_fifos(session, fifo_I32H2T, fifo_I32T2H, 100, 1024*1024);
-    test_fifos(session, fifo_U64H2T, fifo_U64T2H, 100, 1024*1024);
+    test_fifos(session, fifo_I64_H2T, fifo_I64_T2H, 100, 1024*1024);    
+    test_fifos(session, fifo_U8_H2T, fifo_U8_T2H, 100, 1024*1024);
+    test_fifos(session, fifo_U16_H2T, fifo_U16_T2H, 100, 1024*1024);
+    test_fifos(session, fifo_U32_H2T, fifo_U32_T2H, 100, 1024*1024);
+    test_fifos(session, fifo_U64H2T, fifo_U64T2H, 100, 1024*1024);    
     std::cout << "Done." << std::endl;
 
     std::vector<std::thread> threads;
     std::cout << "Testing FIFOs in parallel... " << std::endl;
+    threads.push_back(std::thread([&]() { test_fifos(session, fifo_I8_H2T, fifo_I8_T2H, 100, 1024*1024);}));
+    threads.push_back(std::thread([&]() { test_fifos(session, fifo_I16_H2T, fifo_I16_T2H, 100, 1024*1024);}));
     threads.push_back(std::thread([&]() { test_fifos(session, fifo_I32H2T, fifo_I32T2H, 100, 1024*1024);}));
+    threads.push_back(std::thread([&]() { test_fifos(session, fifo_I64_H2T, fifo_I64_T2H, 100, 1024*1024);}));
+    threads.push_back(std::thread([&]() { test_fifos(session, fifo_U8_H2T, fifo_U8_T2H, 100, 1024*1024);}));
+    threads.push_back(std::thread([&]() { test_fifos(session, fifo_U16_H2T, fifo_U16_T2H, 100, 1024*1024);}));
+    threads.push_back(std::thread([&]() { test_fifos(session, fifo_U32_H2T, fifo_U32_T2H, 100, 1024*1024);}));
     threads.push_back(std::thread([&]() { test_fifos(session, fifo_U64H2T, fifo_U64T2H, 100, 1024*1024);}));
     for(auto& T: threads)
       T.join();
@@ -126,7 +156,7 @@ int main() {
     std::cout << "done." << std::endl;
 
     configureFifos(session);
-    //    testSystem(session);
+    testSystem(session);
 
     std::vector<int32_t> numElements{1, 8, 16, 32, 64, 128, 256, 1024, 2048, 4096, 2*4096};
     for(auto elems: numElements) {
