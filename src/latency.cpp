@@ -91,7 +91,7 @@ std::map<std::string, std::vector<uint64_t> > measure_latencies(NiFpga_Session s
 
 
 void configureFifos(NiFpga_Session session) {
-    const int DEPTH=100000000;
+    const int DEPTH=10000000;
     nifpga::configureFifo(session, fifo_I8_H2T, DEPTH);
     nifpga::configureFifo(session, fifo_I8_T2H, DEPTH);
     nifpga::configureFifo(session, fifo_I16_H2T, DEPTH);
@@ -150,33 +150,42 @@ int main(int argc, char** argv) {
   options.add_options()
     ("d,directory", "Output directory", cxxopts::value<std::string>())
     ("p,parallel", "Number of parallely used FIFOs", cxxopts::value<unsigned int>())
+    ("n,numruns", "Number of runs per FIFO", cxxopts::value<unsigned int>())
+    ("r,rio", "RIO address to use", cxxopts::value<std::string>())
     ;
 
-  auto arguments = options.parse(argc, argv);
-  std::cout << "Running latency measurement into directory " << arguments["directory"].as<std::string>() << std::endl;
-  std::cout << "Using " << arguments["parallel"].as<unsigned int>() << " parallel threads for measurement." << std::endl;
-  std::string outputDir = arguments["directory"].as<std::string>();
-  system(("mkdir " + outputDir).c_str());
-
   try {
+    auto arguments = options.parse(argc, argv);
+    std::string outputDir = arguments["directory"].as<std::string>();
+    unsigned int parallel = arguments["parallel"].as<unsigned int>();
+    unsigned int numruns = arguments["numruns"].as<unsigned int>();
+    std::string rio = arguments["rio"].as<std::string>();
+    std::cout << "Running latency measurement into directory " << outputDir << std::endl;
+    std::cout << "Using " << parallel << " parallel threads for measurement." << std::endl;
+    std::cout << "Doing " << numruns << " per FIFO" << std::endl;
+    system(("mkdir " + outputDir).c_str());
+
     nifpga::initialize();
     std::string path = "c:/Users/maximilian.matthe/Documents/nifpgaFifoLatency/src/";
-
+    
     std::cout << "Opening FPGA... ";
-    NiFpga_Session session = nifpga::open((path + bitfile_filepath).c_str(), bitfile_signature, "RIO0", 0);
+    NiFpga_Session session = nifpga::open((path + bitfile_filepath).c_str(), bitfile_signature, rio.c_str(), 0);
     std::cout << "done." << std::endl;
 
-    // configureFifos(session);
-    // testSystem(session);
+    configureFifos(session);
+    //    testSystem(session);
 
-    std::vector<int32_t> numElements{1, 8, 16, 32, 64, 128, 256, 1024, 2048, 4096, 2*4096};
+    std::vector<int32_t> numElements{1, 8, 16, 32, 64, 128, 256, 1024, 2048, 4096, 2*4096, 4*4096, 8*4096, 16*4096};
     for(auto elems: numElements) {
       std::cout << "Transmitting " << elems << " elements...";
 
-      std::map<std::string, std::vector<uint64_t> > latencies = measure_latencies(session, 100, elems, 4);
+      std::map<std::string, std::vector<uint64_t> > latencies = measure_latencies(session, numruns, elems, parallel);
 
       for (auto kv: latencies) {
-	std::string fn = outputDir + "/" + kv.first + "_" + std::to_string(elems) + ".txt";
+	std::string fn = outputDir + "/" + kv.first +
+	  "_el" + std::to_string(elems) +
+	  "_par" + std::to_string(parallel) +
+	  ".txt";
 
 	std::ofstream outfile(fn);
 	std::copy(kv.second.begin(), kv.second.end(), std::ostream_iterator<uint64_t>(outfile, "\n"));
@@ -185,6 +194,13 @@ int main(int argc, char** argv) {
     }
   }
   catch(nifpga::fpga_exception& e){
-    std::cerr << e.what() << std::endl;
+    std::cerr << "fpga exception: " << e.what() << std::endl;
   }
+  catch(std::exception& e)  {
+    std::cerr << "std exception: " << e.what() << std::endl;
+  }
+  catch(cxxopts::OptionException e) {
+    std::cerr << "option exception: " << e.what() << std::endl;    
+  }
+
 }
