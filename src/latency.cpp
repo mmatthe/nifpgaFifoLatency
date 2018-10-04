@@ -29,7 +29,7 @@ std::vector<uint64_t> measure_latency(NiFpga_Session session,
 				 nifpga::Fifo<data_type> fifo_in,
 				 nifpga::Fifo<data_type> fifo_out,
 				 int elements_per_block, int num_tries) {
-  using namespace std::chrono_literals;
+//  using namespace std::chrono_literals;
 
   std::vector<uint64_t> result;
   result.reserve(num_tries);
@@ -50,7 +50,7 @@ std::vector<uint64_t> measure_latency(NiFpga_Session session,
     std::chrono::nanoseconds elapsed = finish - start;
     if (i > 0)  // do not store the first try, as it may contain some updates
       result.push_back(elapsed.count());
-    std::this_thread::sleep_for(100us);
+    std::this_thread::sleep_for(std::chrono::microseconds(100));
   }
   return result;
 }
@@ -166,14 +166,14 @@ int main(int argc, char** argv) {
     system(("mkdir " + outputDir).c_str());
 
     nifpga::initialize();
-    std::string path = "c:/Users/maximilian.matthe/Documents/nifpgaFifoLatency/src/";
+    std::string path = "/home/root/programming/nifpgaFifoLatency/src/";
     
     std::cout << "Opening FPGA... ";
     NiFpga_Session session = nifpga::open((path + bitfile_filepath).c_str(), bitfile_signature, rio.c_str(), 0);
     std::cout << "done." << std::endl;
 
     configureFifos(session);
-    //    testSystem(session);
+    testSystem(session);
 
     std::vector<int32_t> numElements{1, 8, 16, 32, 64, 128, 256, 1024, 2048, 4096, 2*4096, 4*4096, 8*4096, 16*4096};
     for(auto elems: numElements) {

@@ -6,6 +6,10 @@ resultdir = "results_long"
 rio="RIO0"
 command = "latency.exe"
 
+if os.name == 'posix':
+    rio = "RIO1"
+    command = "build/src/latency"
+
 if not os.path.isdir(resultdir):
     os.mkdir(resultdir)
 if not os.path.isdir(resultdir):
